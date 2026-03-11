@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import AdminLayout from "./layouts/AdminLayout";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import LoginPage from "./pages/Login";
 
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const Products = lazy(() => import("./pages/admin/Products"));
@@ -36,25 +39,35 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Suspense fallback={<Loading />}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/admin" replace />} />
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="products" element={<Products />} />
-              <Route path="products/new" element={<ProductForm />} />
-              <Route path="products/:id" element={<ProductForm />} />
-              <Route path="orders" element={<Orders />} />
-              <Route path="orders/:id" element={<OrderDetails />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="reviews" element={<Reviews />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="ai-insights" element={<AIInsights />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
+        <AuthProvider>
+          <Suspense fallback={<Loading />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/" element={<Navigate to="/admin" replace />} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <AdminLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Dashboard />} />
+                <Route path="products" element={<Products />} />
+                <Route path="products/new" element={<ProductForm />} />
+                <Route path="products/:id" element={<ProductForm />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="orders/:id" element={<OrderDetails />} />
+                <Route path="users" element={<UsersPage />} />
+                <Route path="reviews" element={<Reviews />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="ai-insights" element={<AIInsights />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

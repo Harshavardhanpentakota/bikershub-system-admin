@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Upload } from "lucide-react";
@@ -24,30 +24,35 @@ export default function ProductForm() {
   const product = existingProduct?.product || existingProduct;
 
   const [form, setForm] = useState<any>({
-    name: "", price: "", originalPrice: "", discountPercentage: "", category: "",
+    name: "", price: "", originalPrice: "", discount: "", category: "",
     sizes: "", colors: "", compatibleBikes: "", description: "", specifications: "",
-    countInStock: "", images: [],
+    stockQuantity: "", images: [], image: "",
   });
 
   // Populate form when editing
-  useState(() => {
+  useEffect(() => {
     if (product) {
       setForm({
         name: product.name || "",
         price: product.price || "",
         originalPrice: product.originalPrice || "",
-        discountPercentage: product.discountPercentage || "",
+        discount: product.discount ?? product.discountPercentage ?? "",
         category: product.category || "",
-        sizes: product.sizes?.join(", ") || "",
-        colors: product.colors?.join(", ") || "",
-        compatibleBikes: product.compatibleBikes?.join(", ") || "",
+        sizes: Array.isArray(product.sizes) ? product.sizes.join(", ") : product.sizes || "",
+        colors: Array.isArray(product.colors)
+          ? product.colors.map((c: any) => (typeof c === "object" ? c.name : c)).join(", ")
+          : product.colors || "",
+        compatibleBikes: Array.isArray(product.compatibleBikes) ? product.compatibleBikes.join(", ") : product.compatibleBikes || "",
         description: product.description || "",
-        specifications: JSON.stringify(product.specifications || {}),
-        countInStock: product.countInStock || product.stock || "",
+        specifications: typeof product.specifications === "object"
+          ? JSON.stringify(product.specifications || {})
+          : product.specifications || "",
+        stockQuantity: product.stockQuantity ?? product.countInStock ?? product.stock ?? "",
+        image: product.image || product.images?.[0] || "",
         images: product.images || [],
       });
     }
-  });
+  }, [product?._id]);    // eslint-disable-line react-hooks/exhaustive-deps
 
   const mutation = useMutation({
     mutationFn: (data: any) => isEdit ? api.updateProduct(id!, data) : api.createProduct(data),
@@ -61,11 +66,12 @@ export default function ProductForm() {
       ...form,
       price: Number(form.price),
       originalPrice: Number(form.originalPrice),
-      discountPercentage: Number(form.discountPercentage),
-      countInStock: Number(form.countInStock),
+      discount: Number(form.discount),
+      stockQuantity: Number(form.stockQuantity),
       sizes: form.sizes.split(",").map((s: string) => s.trim()).filter(Boolean),
       colors: form.colors.split(",").map((s: string) => s.trim()).filter(Boolean),
       compatibleBikes: form.compatibleBikes.split(",").map((s: string) => s.trim()).filter(Boolean),
+      specifications: (() => { try { return JSON.parse(form.specifications || "{}"); } catch { return {}; } })(),
     };
     mutation.mutate(payload);
   };
@@ -99,7 +105,7 @@ export default function ProductForm() {
             </div>
             <div className="space-y-2">
               <Label>Discount %</Label>
-              <Input type="number" value={form.discountPercentage} onChange={(e) => updateField("discountPercentage", e.target.value)} placeholder="0" />
+              <Input type="number" value={form.discount} onChange={(e) => updateField("discount", e.target.value)} placeholder="0" />
             </div>
             <div className="space-y-2">
               <Label>Category</Label>
@@ -107,7 +113,7 @@ export default function ProductForm() {
             </div>
             <div className="space-y-2">
               <Label>Stock Quantity</Label>
-              <Input type="number" value={form.countInStock} onChange={(e) => updateField("countInStock", e.target.value)} placeholder="0" required />
+              <Input type="number" value={form.stockQuantity} onChange={(e) => updateField("stockQuantity", e.target.value)} placeholder="0" required />
             </div>
           </div>
         </div>

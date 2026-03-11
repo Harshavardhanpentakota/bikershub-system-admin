@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Star, BarChart3,
   Brain, Settings, ChevronLeft, ChevronRight, Search, Bell, Moon, Sun,
@@ -31,6 +32,13 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
 
   const isActive = (path: string) => {
     if (path === "/admin") return location.pathname === "/admin";
@@ -147,16 +155,18 @@ export default function AdminLayout() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 px-2">
                   <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">A</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                      {user?.name?.[0]?.toUpperCase() ?? "A"}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline text-sm font-medium">Admin</span>
+                  <span className="hidden sm:inline text-sm font-medium">{user?.name ?? "Admin"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>Profile</DropdownMenuItem>
                 <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" /> Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>

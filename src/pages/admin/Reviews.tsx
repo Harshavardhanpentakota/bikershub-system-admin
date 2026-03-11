@@ -7,11 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
+const DATE_RANGES = [
+  { label: "All Time", value: "all" },
+  { label: "Last 7 Days", value: "7" },
+  { label: "Last 30 Days", value: "30" },
+  { label: "Last 90 Days", value: "90" },
+];
+
+function dateFrom(value: string): Date | null {
+  if (value === "all") return null;
+  const d = new Date();
+  d.setDate(d.getDate() - Number(value));
+  return d;
+}
+
 export default function Reviews() {
-  const [productId, setProductId] = useState("");
+  const [productId, setProductId] = useState("all");
   const [ratingFilter, setRatingFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState("all");
   const queryClient = useQueryClient();
 
   // Get products list for selector
@@ -23,18 +40,36 @@ export default function Reviews() {
 
   const { data: reviewsData, isLoading } = useQuery({
     queryKey: ["reviews", productId],
-    queryFn: () => api.getProductReviews(productId),
-    enabled: !!productId,
+    queryFn: () =>
+      productId === "all"
+        ? api.getAllReviews()
+        : api.getProductReviews(productId),
   });
 
   const reviews = Array.isArray(reviewsData) ? reviewsData : reviewsData?.reviews || [];
-  const filtered = reviews.filter((r: any) =>
-    ratingFilter === "all" || r.rating === Number(ratingFilter)
-  );
+
+  const fromDate = dateFrom(dateRange);
+  const filtered = reviews.filter((r: any) => {
+    if (ratingFilter !== "all" && r.rating !== Number(ratingFilter)) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      const name = (r.name || r.user?.name || "").toLowerCase();
+      const comment = (r.comment || "").toLowerCase();
+      if (!name.includes(s) && !comment.includes(s)) return false;
+    }
+    if (fromDate && r.createdAt && new Date(r.createdAt) < fromDate) return false;
+    return true;
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteReview(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["reviews"] }); toast.success("Review deleted"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: (id: string) => api.flagReview(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["reviews"] }); toast.success("Review flagged"); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -48,34 +83,54 @@ export default function Reviews() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Reviews" description="Manage product reviews" />
+      <PageHeader
+        title="Reviews"
+        description={filtered.length > 0 ? `${filtered.length} review${filtered.length !== 1 ? "s" : ""}` : "Manage product reviews"}
+      />
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3">
         <Select value={productId} onValueChange={setProductId}>
-          <SelectTrigger className="w-64"><SelectValue placeholder="Select a product" /></SelectTrigger>
+          <SelectTrigger className="w-56"><SelectValue placeholder="All Products" /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All Products</SelectItem>
             {products.map((p: any) => (
               <SelectItem key={p._id || p.id} value={p._id || p.id}>{p.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
         <Select value={ratingFilter} onValueChange={setRatingFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Rating" /></SelectTrigger>
+          <SelectTrigger className="w-36"><SelectValue placeholder="Rating" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Ratings</SelectItem>
             {[5, 4, 3, 2, 1].map((r) => <SelectItem key={r} value={String(r)}>{r} Stars</SelectItem>)}
           </SelectContent>
         </Select>
+
+        <Select value={dateRange} onValueChange={setDateRange}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Date range" /></SelectTrigger>
+          <SelectContent>
+            {DATE_RANGES.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search reviewer or comment…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      {!productId ? (
-        <EmptyState icon={Star} title="Select a product" description="Choose a product to view its reviews." />
+      {filtered.length === 0 && !isLoading ? (
+        <EmptyState icon={Star} title="No reviews found" description="Try adjusting your filters." />
       ) : (
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           {isLoading ? (
-            <div className="p-12 text-center text-muted-foreground">Loading reviews...</div>
-          ) : filtered.length === 0 ? (
-            <EmptyState icon={Star} title="No reviews found" description="This product has no reviews yet." />
+            <div className="p-12 text-center text-muted-foreground">Loading reviews…</div>
           ) : (
             <Table>
               <TableHeader>
@@ -84,6 +139,7 @@ export default function Reviews() {
                   <TableHead>Rating</TableHead>
                   <TableHead>Comment</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -96,12 +152,25 @@ export default function Reviews() {
                     <TableCell className="text-muted-foreground text-sm">
                       {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "N/A"}
                     </TableCell>
+                    <TableCell>
+                      {review.flagged && <Badge variant="destructive" className="text-xs">Flagged</Badge>}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => toast.info("Review flagged")}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => flagMutation.mutate(review._id || review.id)}
+                          disabled={flagMutation.isPending}
+                        >
                           <Flag className="w-4 h-4 text-warning" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(review._id || review.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(review._id || review.id)}
+                          disabled={deleteMutation.isPending}
+                        >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>

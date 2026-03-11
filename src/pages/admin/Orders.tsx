@@ -18,7 +18,7 @@ export default function Orders() {
     queryFn: () => api.getOrders(),
   });
 
-  const orders = Array.isArray(data) ? data : data?.orders || [];
+  const orders = Array.isArray(data) ? data : data?.items || data?.orders || [];
   const filtered = orders.filter((o: any) => {
     const matchStatus = statusFilter === "all" || o.orderStatus === statusFilter || o.status === statusFilter;
     const matchSearch = !search || o._id?.includes(search) || o.user?.name?.toLowerCase().includes(search.toLowerCase()) || o.shippingAddress?.email?.toLowerCase().includes(search.toLowerCase());
