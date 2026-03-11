@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Plus, Search, Eye, Pencil, Trash2, Package } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, Package, Upload, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { PageHeader, StatusBadge, EmptyState } from "@/components/admin/SharedComponents";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ export default function Products() {
   const [category, setCategory] = useState("all");
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["products", page],
@@ -27,7 +28,37 @@ export default function Products() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const products = Array.isArray(data) ? data : data?.products || [];
+  const bulkImportMutation = useMutation({
+    mutationFn: (file: File) => api.bulkImportProducts(file),
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Imported ${result.imported ?? ""} products${result.skipped ? `, ${result.skipped} skipped` : ""}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith(".csv")) { toast.error("Please upload a .csv file"); return; }
+    bulkImportMutation.mutate(file);
+    e.target.value = "";
+  }
+
+  function downloadTemplate() {
+    const headers = ["name", "description", "price", "category", "brand", "stock", "images", "tags"];
+    const example = ["Racing Helmet Pro", "Full-face motorcycle helmet", "199.99", "Helmets", "RacePro", "50", "https://example.com/img.jpg", "helmet,racing"];
+    const csv = [headers.join(","), example.join(",")].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "products_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const products = Array.isArray(data) ? data : data?.items || data?.products || [];
   const filtered = products.filter((p: any) => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase()) || p.category?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "all" || p.category === category;
@@ -39,6 +70,25 @@ export default function Products() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Products" description={`${filtered.length} products`}>
+        <Button variant="outline" size="sm" onClick={downloadTemplate}>
+          <Download className="w-4 h-4 mr-2" />CSV Template
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={bulkImportMutation.isPending}
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          {bulkImportMutation.isPending ? "Importing…" : "Upload CSV"}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <Button asChild>
           <Link to="/admin/products/new"><Plus className="w-4 h-4 mr-2" />Add Product</Link>
         </Button>
@@ -81,8 +131,8 @@ export default function Products() {
                 <TableRow key={product._id || product.id} className="border-border/50">
                   <TableCell>
                     <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden">
-                      {product.images?.[0] ? (
-                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                      {(product.image || product.images?.[0]) ? (
+                        <img src={product.image || product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center"><Package className="w-4 h-4 text-muted-foreground" /></div>
                       )}
@@ -92,8 +142,8 @@ export default function Products() {
                   <TableCell><span className="text-muted-foreground">{product.category}</span></TableCell>
                   <TableCell className="font-mono">${product.price}</TableCell>
                   <TableCell>
-                    <StatusBadge status={product.stock > 10 ? "active" : product.stock > 0 ? "pending" : "cancelled"} />
-                    <span className="ml-2 text-sm text-muted-foreground">{product.stock ?? product.countInStock}</span>
+                    <StatusBadge status={product.stockQuantity > 10 || product.stock > 10 ? "In Stock" : (product.stockQuantity ?? product.stock ?? 0) > 0 ? "Low Stock" : "Out of Stock"} />
+                    <span className="ml-2 text-sm text-muted-foreground">{product.stockQuantity ?? product.stock ?? product.countInStock ?? 0}</span>
                   </TableCell>
                   <TableCell>⭐ {product.rating?.toFixed(1) || "N/A"}</TableCell>
                   <TableCell className="text-right">

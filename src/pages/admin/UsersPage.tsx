@@ -16,7 +16,7 @@ export default function UsersPage() {
     queryFn: () => api.getUsers(),
   });
 
-  const users = Array.isArray(data) ? data : data?.users || [];
+  const users = Array.isArray(data) ? data : data?.items || data?.users || [];
   const filtered = users.filter((u: any) =>
     !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase())
   );
@@ -53,7 +53,7 @@ export default function UsersPage() {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell className="text-muted-foreground">{user.phone || "N/A"}</TableCell>
-                  <TableCell><StatusBadge status={user.isAdmin || user.role === "admin" ? "active" : "pending"} /></TableCell>
+                  <TableCell><StatusBadge status={user.isAdmin || user.role === "admin" ? "Admin" : "Customer"} /></TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
                   </TableCell>

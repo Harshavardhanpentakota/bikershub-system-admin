@@ -75,6 +75,9 @@ export function StatusBadge({ status }: { status: string }) {
     failed: "bg-destructive/10 text-destructive border-destructive/20",
     active: "bg-success/10 text-success border-success/20",
     inactive: "bg-muted text-muted-foreground border-border",
+    "in stock": "bg-success/10 text-success border-success/20",
+    "low stock": "bg-warning/10 text-warning border-warning/20",
+    "out of stock": "bg-destructive/10 text-destructive border-destructive/20",
   };
 
   return (

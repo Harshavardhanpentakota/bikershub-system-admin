@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 function getHeaders(): HeadersInit {
   const token = localStorage.getItem("admin_token");
@@ -12,6 +12,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: { ...getHeaders(), ...(options?.headers || {}) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `API Error ${res.status}`);
+  }
+  return res.json();
+}
+
+async function upload<T>(path: string, formData: FormData): Promise<T> {
+  const token = localStorage.getItem("admin_token");
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
@@ -40,8 +54,29 @@ export const api = {
 
   // Reviews
   getProductReviews: (productId: string) => request<any>(`/reviews/product/${productId}`),
+  getAllReviews: (params?: string) => request<any>(`/admin/reviews${params ? `?${params}` : ""}`),
   deleteReview: (id: string) => request<any>(`/reviews/${id}`, { method: "DELETE" }),
+  flagReview: (id: string) => request<any>(`/reviews/${id}/flag`, { method: "PUT" }),
+
+  // Analytics
+  getAnalytics: (range: number) => request<any>(`/admin/analytics?range=${range}`),
+
+  // Products - bulk import
+  bulkImportProducts: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return upload<any>("/admin/products/bulk-import", fd);
+  },
 
   // Auth
   login: (email: string, password: string) => request<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+
+  // Settings
+  getSettings: () => request<any>("/admin/settings"),
+  updateSettings: (data: any) => request<any>("/admin/settings", { method: "PUT", body: JSON.stringify(data) }),
+  updatePassword: (data: { currentPassword: string; newPassword: string }) =>
+    request<any>("/admin/settings/password", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Profile (current user)
+  updateProfile: (data: any) => request<any>("/auth/me", { method: "PUT", body: JSON.stringify(data) }),
 };
